@@ -30,6 +30,9 @@ We also use the pyrender to get the depth map.
 pip install pyrender
 ```
 
+* Download [OpenVolumeMesh](https://www.graphics.rwth-aachen.de/software/openvolumemesh/download/) to the `OpenVolumeMesh` folder
+* Download [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page) to the `volumeARAP_batch/Eigen` folder
+
 ## Data preparation
 Suppose the image data is in the `$data_dir/images` folder, we first estimate the camera poses with [colmap](https://github.com/colmap/colmap). Then we process the camera poses with the command 
 ```
@@ -76,11 +79,11 @@ python exp_runner.py --mode validate_mesh --conf <config_file> --case <case_name
 ```
 ./TetWild $input.obj
 ```
-Note that we modify the tetrahedra storage format of Tetwild output. Therefore, please compile the `tetwild` in this reposity.
+Note that we modify the tetrahedra storage format of Tetwild output. Therefore, please compile the `tetwild` in this repository following the instructions [here](https://github.com/Yixin-Hu/TetWild).
 
 ##### Change the output to `ovm` format.
 ```
-./simple_mesh $inputtxt $output.ovm
+./simple_mesh $input.txt $output.ovm
 ```
 `simple_mesh` can be obtained using the `CMakeLists.txt` in the `OpenVolumeMesh` folder.
 
@@ -122,16 +125,16 @@ Compile the `volumeARAP_batch` project to obtain `volumeARAP`, and deform the te
 ```
 ##### Rendering after editing
 ```
-python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue  --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm> --obj_path <deformed_mesh_obj_path> (optional)
+python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm> --obj_path <deformed_mesh_obj_path> (optional)
 ```
 
 * fix camera (generate sequential editing results in a fixed camera)
 ```
-python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue  --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm_dir> --obj_path <deformed_mesh_obj_dir> --fix_camera --savedir <save_dir>
+python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm_dir> --obj_path <deformed_mesh_obj_dir> --fix_camera --savedir <save_dir>
 ```
 
 ## Acknowledgement
-This code borrows heavily from [NeuS](https://github.com/Yixin-Hu/TetWild).
+This code borrows heavily from [NeuS](https://github.com/Totoro97/NeuS).
 
 ## Citation
 
