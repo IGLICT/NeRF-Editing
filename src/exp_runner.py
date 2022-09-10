@@ -146,8 +146,8 @@ class Runner:
                 # import ipdb; ipdb.set_trace()
             # if jt.logical_or(loss.isnan(), loss.isinf()).any():
             if loss.isnan().any():
-                print("***** Nan loss with %d ray *****" % (color_fine.isnan().sum()))
-                print("Current image index is %d ." % (int(image_perm[self.iter_step % len(image_perm)])))
+                # print("***** Nan loss with %d ray *****" % (color_fine.isnan().sum()))
+                # print("Current image index is %d ." % (int(image_perm[self.iter_step % len(image_perm)])))
                 continue
 
             self.optimizer.zero_grad()
