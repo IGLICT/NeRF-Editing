@@ -2,7 +2,7 @@ import logging
 import jittor as jt
 import cv2 as cv
 import numpy as np
-import os
+import os, json
 from glob import glob
 from scipy.spatial.transform import Rotation as Rot
 from scipy.spatial.transform import Slerp
@@ -111,58 +111,86 @@ class Dataset:
         self.conf = conf
 
         self.data_dir = conf.get_string('data_dir')
-        NEED_INVERT = False
-        pose_dir = os.path.join(self.data_dir, "pose")
-        if not os.path.exists(pose_dir):
-            pose_dir = os.path.join(self.data_dir, "extrinsic")
-            NEED_INVERT = True
-        img_dir = os.path.join(self.data_dir, "rgb")
-
-        pose_files = sorted([os.path.join(pose_dir, x) for x in os.listdir(pose_dir) if x.startswith('0')])
-        val_pose_files = sorted([os.path.join(pose_dir, x) for x in os.listdir(pose_dir) if x.startswith('1')])
-
-        img_files = sorted([os.path.join(img_dir, x) for x in os.listdir(img_dir) if x.startswith('0')])
+        dataset_type = conf.get_string('type')
 
         USE_CUSTOM_DATASET = False
-        if "hbychair" in self.data_dir:
+        if dataset_type == 'nerf_synthetic':
+            print("Use the nerf synthetic dataset")
+            splits = ['train', 'val', 'test']
+            metas = {}
+            for s in splits:
+                with open(os.path.join(self.data_dir, 'transforms_{}.json'.format(s)), 'r') as fp:
+                    metas[s] = json.load(fp)
+
+            train_meta = metas['train']
+            img_files = []
+            all_imgs = []
+            all_poses = []
+            all_val_poses = []
+            for frame in train_meta['frames']:
+                fname = os.path.join(self.data_dir, frame['file_path'] + '.png')
+                img_files.append(fname)
+                all_imgs.append(imageio.imread(fname))
+                all_poses.append(np.array(frame['transform_matrix']))
+            all_imgs = (np.array(all_imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
+            all_poses = np.array(all_poses).astype(np.float32)
+            all_val_poses = all_poses[-5:]
+
+            H, W = all_imgs[0].shape[:2]
+            camera_angle_x = float(train_meta['camera_angle_x'])
+            focal = .5 * W / np.tan(.5 * camera_angle_x)
+            _intrinsics = np.array([
+                [focal, 0, 0.5*W],
+                [0, focal, 0.5*H],
+                [0, 0, 1]
+            ])
+
+        elif dataset_type == 'custom':
             print("Use the custom dataset")
             USE_CUSTOM_DATASET = True
+            NEED_INVERT = False
+            pose_dir = os.path.join(self.data_dir, "pose")
+            if not os.path.exists(pose_dir):
+                pose_dir = os.path.join(self.data_dir, "extrinsic")
+                NEED_INVERT = True
+            img_dir = os.path.join(self.data_dir, "rgb")
 
-        if USE_CUSTOM_DATASET:
             pose_files = sorted([os.path.join(pose_dir, x) for idx,x in enumerate(os.listdir(pose_dir))])
             img_files = sorted([os.path.join(img_dir, x) for idx,x in enumerate(os.listdir(img_dir))])
             val_pose_files = pose_files[-5:]
 
-        all_poses = [np.loadtxt(x) for x in sorted(pose_files)] # list of 4x4 array
-        all_val_poses = [np.loadtxt(x) for x in sorted(val_pose_files)] # list of 4x4 array
+            all_poses = [np.loadtxt(x) for x in sorted(pose_files)] # list of 4x4 array
+            all_val_poses = [np.loadtxt(x) for x in sorted(val_pose_files)] # list of 4x4 array
 
-        if NEED_INVERT:
-            all_poses = [np.linalg.inv(x) for x in all_poses]
-            all_val_poses = [np.linalg.inv(x) for x in all_val_poses]
+            if NEED_INVERT:
+                all_poses = [np.linalg.inv(x) for x in all_poses]
+                all_val_poses = [np.linalg.inv(x) for x in all_val_poses]
 
-        all_poses = np.stack(all_poses, axis=0).astype(np.float32)
-        all_val_poses = np.stack(all_val_poses, axis=0).astype(np.float32)
+            all_poses = np.stack(all_poses, axis=0).astype(np.float32)
+            all_val_poses = np.stack(all_val_poses, axis=0).astype(np.float32)
 
-        all_poses[:,:,1:3] = -all_poses[:,:,1:3] # I don't know why ...
-        all_val_poses[:,:,1:3] = -all_val_poses[:,:,1:3] # I don't know why ...
+            all_poses[:,:,1:3] = -all_poses[:,:,1:3] # I don't know why ...
+            all_val_poses[:,:,1:3] = -all_val_poses[:,:,1:3] # I don't know why ...
 
-        all_imgs = [imageio.imread(x) for x in sorted(img_files)] # list of images
-        all_imgs = np.stack(all_imgs, axis=0).astype(np.float32) / 255. # keep all 3 channels (RGBA):3
+            all_imgs = [imageio.imread(x) for x in sorted(img_files)] # list of images
+            all_imgs = np.stack(all_imgs, axis=0).astype(np.float32) / 255. # keep all 3 channels (RGBA):3
 
-        intrinsic_path = os.path.join(self.data_dir, "intrinsics.txt") # 
-        with open(intrinsic_path) as f:
-            lines = f.readlines()
-        focal = np.fromstring(lines[0], sep=' ', dtype=np.float32)[0]
-        H, W =  np.fromstring(lines[-1], sep=' ', dtype=np.int)
-        _intrinsics = np.array([
-            [focal, 0, 0.5*W],
-            [0, focal, 0.5*H],
-            [0, 0, 1]
-        ])
+            intrinsic_path = os.path.join(self.data_dir, "intrinsics.txt") # 
+            with open(intrinsic_path) as f:
+                lines = f.readlines()
+            focal = np.fromstring(lines[0], sep=' ', dtype=np.float32)[0]
+            H, W =  np.fromstring(lines[-1], sep=' ', dtype=np.int)
+            _intrinsics = np.array([
+                [focal, 0, 0.5*W],
+                [0, focal, 0.5*H],
+                [0, 0, 1]
+            ])
 
-        if USE_CUSTOM_DATASET:
             print("normalize the camera")
             all_poses = normalizeCamera(all_poses, H, W, focal)
+
+        else:
+            raise NotImplementedError
 
         ### load data
         self.n_images = len(img_files)
@@ -186,12 +214,8 @@ class Dataset:
         self.H, self.W = self.images.shape[1], self.images.shape[2]
         self.image_pixels = self.H * self.W
 
-        object_bbox_min = np.array([-1.01, -1.01, -1.01, 1.0])
-        object_bbox_max = np.array([ 1.01,  1.01,  1.01, 1.0])
-        if "hbychair" in self.data_dir:
-            print("use the %s object bbox" % "hbychair")
-            object_bbox_min = np.array([-1.3, -1.3, -1.3, 1.0])
-            object_bbox_max = np.array([ 1.3,  1.3,  1.3, 1.0])
+        object_bbox_min = np.array([-1.3, -1.3, -1.3, 1.0])
+        object_bbox_max = np.array([ 1.3,  1.3,  1.3, 1.0])
         self.object_bbox_min = object_bbox_min[:3]
         self.object_bbox_max = object_bbox_max[:3]
 
@@ -272,7 +296,7 @@ class Dataset:
         Nframes = 40
 
         if "hbychair" in self.data_dir:
-            print("set render raids to 1.5 !, add aditional rotation")
+            print("set render raids to 3.5 ! Add aditional rotation.")
             render_poses = []
             for elev in [-30]:
                 render_pose = jt.stack([pose_spherical(angle, elev, 3.5) for angle in np.linspace(-180,180,Nframes+1)[:-1]], 0)
@@ -280,6 +304,11 @@ class Dataset:
                 rotation_mat = jt.linalg.inv(rotation_mat)
                 render_poses += [rotation_mat @ x for x in render_pose]
             render_poses = jt.stack(render_poses)
+        else:
+            print("set render raids to 3.5 !")
+            for elev in [-30]:
+                render_poses = jt.stack([pose_spherical(angle, elev, 3.5) for angle in np.linspace(-180,180,Nframes+1)[:-1]], 0)
+
         return render_poses
 
     def gen_validation_pose(self):

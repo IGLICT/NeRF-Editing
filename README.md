@@ -34,6 +34,7 @@ pip install pyrender
 * Download [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page) to the `volumeARAP_batch/Eigen` folder
 
 ## Data preparation
+
 Suppose the image data is in the `$data_dir/images` folder, we first estimate the camera poses with [colmap](https://github.com/colmap/colmap). Then we process the camera poses with the command 
 ```
 python process_colmap.py $data_dir $data_dir
@@ -50,6 +51,9 @@ $data_dir
 └── sparse (colmap output)
 ```
 
+We now provide a provide a ready-to-use dataset `hbychair` collected by ourselves in [google drive](https://drive.google.com/drive/folders/1OdHHNxMk9t9cDTZHlMHLSb11tf9LYHtG?usp=sharing), along with the pre-trained model and deformation results. You can put the data into the `data` folder.
+
+Or you can use [nerf-synthetic dataset](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1) directly, see `./confs/wmask_lego.conf` as an example.
 
 ## Technological process
 
@@ -57,38 +61,44 @@ $data_dir
 we adopt the training strategy of [NeuS](https://github.com/Totoro97/NeuS).
 
 ```
-python exp_runner.py --mode train --conf ./confs/wmask_mousy.conf --case mousy_neus
+python exp_runner.py --mode train --conf ./confs/womask_hbychair.conf --case hbychair_neus
 ```
 
 ##### Extract mesh
  ```
-python exp_runner.py --mode validate_mesh --conf <config_file> --case <case_name> --is_continue # use latest checkpoint
+python exp_runner.py --mode validate_mesh --conf ./confs/womask_hbychair.conf --case hbychair_neus --is_continue # use latest checkpoint
  ```
+ *We have provided a simplified mesh `mesh_nofloor_simp.obj`*
 
 ##### Render image before editing
 ```
-python exp_runner.py --mode circle --conf ./confs/wmask_bear.conf --case bear_neus --is_continue  --obj_path ../../logs/bear_new_camera_neus/meshes/00300000.obj
+python exp_runner.py --mode circle --conf ./confs/womask_hbychair_render.conf --case hbychair_neus --is_continue  --obj_path ./logs/hbychair_wo_mask/mesh_nofloor_simp.obj
 ```
+
+*Note: `obj_path` is optional, which provides better rendering results.*
 
 ##### Construct cage mesh
  ```
-python exp_runner.py --mode validate_mesh --conf <config_file> --case <case_name> --is_continue --do_dilation
+python exp_runner.py --mode validate_mesh --conf ./confs/womask_hbychair.conf --case hbychair_neus --is_continue --do_dilation
  ```
+ *We have provided a cage mesh `mesh_cage_nofloor.obj`*
 
 ##### Construct tetrahedral mesh using [TetWild](https://github.com/Yixin-Hu/TetWild). 
 ```
-./TetWild $input.obj
+./TetWild ../../src/logs/hbychair_wo_mask/mesh_cage_nofloor.obj
 ```
-Note that we modify the tetrahedra storage format of Tetwild output. Therefore, please compile the `tetwild` in this repository following the instructions [here](https://github.com/Yixin-Hu/TetWild).
+*Note that we modify the tetrahedra storage format of Tetwild output. Therefore, please compile the `tetwild` in this repository following the instructions [here](https://github.com/Yixin-Hu/TetWild).*
 
 ##### Change the output to `ovm` format.
 ```
-./simple_mesh $input.txt $output.ovm
+./simple_mesh ../../src/logs/hbychair_wo_mask/mesh_cage_nofloor_.txt ../../src/logs/hbychair_wo_mask/mesh_cage_nofloor_.ovm
 ```
-`simple_mesh` can be obtained using the `CMakeLists.txt` in the `OpenVolumeMesh` folder.
+*`simple_mesh` can be obtained using the `CMakeLists.txt` in the `OpenVolumeMesh` folder.*
 
 ##### Editing
  Deform the extracted mesh *with any mesh editing tool*, and put the (sequence) mesh in `$deformed_dir` folder.
+ 
+ *We have provided a deformed mesh `deformed_mesh.obj` and a foler named as `mesh_seq`*
 
 ##### Propagate editing
 Generate the controlpoint.txt to guide the deformation.
@@ -121,16 +131,16 @@ u2 v2 w2 z2
 ```
 Compile the `volumeARAP_batch` project to obtain `volumeARAP`, and deform the tetrehedra mesh.
 ```
-./volumeARAP $ovm_path $control_pts.txt $output_dir 0
+./volumeARAP ../../src/logs/hbychair_wo_mask/mesh_cage_nofloor_.ovm ../../src/logs/hbychair_wo_mask/mesh_seq/2_barycentric_control.txt ../../src/logs/hbychair_wo_mask/mesh_seq_ovm 0
 ```
 ##### Rendering after editing
 ```
-python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm> --obj_path <deformed_mesh_obj_path> (optional)
+python exp_runner.py --mode circle --conf ./confs/womask_hbychair_render.conf --case hbychair_neus --is_continue --use_deform --reconstructed_mesh_file ./logs/hbychair_wo_mask/mesh_cage_nofloor_.txt --deformed_mesh_file ./logs/hbychair_wo_mask/mesh_seq_ovm/arap_result_0000_.ovm --obj_path ./logs/hbychair_wo_mask/deformed_mesh.obj
 ```
 
 * fix camera (generate sequential editing results in a fixed camera)
 ```
-python exp_runner.py --mode circle --conf <config_file> --case <case_name> --is_continue --use_deform --reconstructed_mesh_file <tetwild_output_txt> --deformed_mesh_file <deformed_ovm_dir> --obj_path <deformed_mesh_obj_dir> --fix_camera --savedir <save_dir>
+python exp_runner.py --mode circle --conf ./confs/womask_hbychair_render.conf --case hbychair_neus --is_continue --use_deform --reconstructed_mesh_file ./logs/hbychair_wo_mask/mesh_cage_nofloor_.txt --deformed_mesh_file ./logs/hbychair_wo_mask/mesh_seq_ovm/arap_result_0000_.ovm --obj_path ./logs/hbychair_wo_mask/deformed_mesh.obj --fix_camera
 ```
 
 ## Acknowledgement
