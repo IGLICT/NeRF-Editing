@@ -410,8 +410,9 @@ class TetMesh():
             # verts_id = res.idx[0] # [bs, K]
             tets_id = self.vert2tet[verts_id] # [bs, K, max_degree]
             # expand the dimension of tet_verts, to padding the tets
-            tet_verts = jt.concat([self.tet_verts, jt.rand((1,4,3),dtype=jt.float32)+999], dim=0) # [NT+1,4,3]
-            cur_tet_verts = tet_verts[tets_id.reshape(bs,-1)] # [bs,K*max_degree,4,3]. gather cannot use -1 as index, while slice can！
+            pad_tet_verts = jt.concat([self.tet_verts, jt.rand((1,4,3),dtype=jt.float32)+999], dim=0) # [NT+1,4,3]
+            tets_id[tets_id==-1] = NT
+            cur_tet_verts = pad_tet_verts[tets_id.reshape(bs,-1)] # [bs,K*max_degree,4,3]. gather cannot use -1 as index, while slice can！
             cur_NT = K * self.max_degree
 
             sample_pts = sample_pts.permute(1,0,2).expand(bs,cur_NT,3)
@@ -474,13 +475,14 @@ def queryDelta(hull, deltas, query_pts):
         # barycentric_ = barycentric.numpy()
         # print("find TNN cost time %s" % (time.time()-t1))
 
+        zero_mask = (simplexID == -1).reshape(bs, N, -1)
+        simplexID[simplexID==-1] = hull.NT-1
         values = deltas[hull.tets[simplexID]] # [N,4,3]
 
         result = (barycentric * values).sum(dim=1)
         # print("the hull has %d simplicies, query %d points with time [%f]" % (len(hull.tets), len(result), time.time()-t1))
 
         result = result.reshape(bs, N, -1)
-        zero_mask = (simplexID == -1).reshape(bs, N, -1)
         tri_verts = hull.verts[hull.tets[simplexID]].reshape(bs, N, 4, 3)
         tri_deltas = values.reshape(bs, N, 4, 3)
 

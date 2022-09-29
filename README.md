@@ -98,7 +98,7 @@ python exp_runner.py --mode validate_mesh --conf ./confs/womask_hbychair.conf --
 ##### Editing
  Deform the extracted mesh *with any mesh editing tool*, and put the (sequence) mesh in `$deformed_dir` folder.
  
- *We have provided a deformed mesh `deformed_mesh.obj` and a foler named as `mesh_seq`*
+ *We have provided a deformed mesh `deformed_mesh.obj` and a folder named as `mesh_seq`*
 
 ##### Propagate editing
 Generate the controlpoint.txt to guide the deformation.
